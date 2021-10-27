@@ -139,6 +139,8 @@ f = (1-p)*dnorm(X, 0, 1) + p*dnorm(X, 5, 1)
 # Lfdr = (1-pi)f0(X)/f(x)
 Lfdr = (1-p)*dnorm(X, 0, 1)/f
 cumsum(sort(Lfdr)) < alpha
+
+
 ```
 
 
