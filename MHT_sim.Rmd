@@ -126,21 +126,42 @@ Using Lfdr and PFDR
 
 ```{r}
 # Basically re-using code from above
+# p known here!
 p = 0.4
 alpha = 0.05
 num_samples = 1000
-# True if true mean =/= 0
-theta = rbernoulli(num_samples, p)
-f0 = rnorm(num_samples, 0, 1)
-f1 = rnorm(num_samples, 5, 1)
-X = ifelse(theta, f1, f0)
-f = (1-p)*dnorm(X, 0, 1) + p*dnorm(X, 5, 1)
+## True if true mean =/= 0
+# theta = rbernoulli(num_samples, p)
+# f0 = rnorm(num_samples, 0, 1)
+# f1 = rnorm(num_samples, 5, 1)
+# X = ifelse(theta, f1, f0)
+# f = (1-p)*dnorm(X, 0, 1) + p*dnorm(X, 5, 1)
 
 # Lfdr = (1-pi)f0(X)/f(x)
-Lfdr = (1-p)*dnorm(X, 0, 1)/f
-cumsum(sort(Lfdr)) < alpha
+PFDR_fun = function(p = 0.4, alpha = 0.05, num_samples = 1000, alt_hyp = 4) {
+  df = tibble(theta = rbernoulli(num_samples, p),
+              X = ifelse(theta, rnorm(num_samples, alt_hyp, 1), rnorm(num_samples, 0, 1)),
+              f = (1-p)*dnorm(X, 0, 1) + p*dnorm(X, alt_hyp, 1),
+              Lfdr = (1-p)*dnorm(X, 0, 1)/f) %>% 
+    arrange(Lfdr) %>% 
+    mutate(q = cumsum(Lfdr)/(1:length(Lfdr)), 
+           `q<a` = q < alpha, # Total discoveries
+           Type1error = `q<a`&!theta, # Type 1 errors
+           Type2error = theta&!`q<a`) %>% # Type 2 errors
+    summarise(theta = sum(theta), disc = sum(`q<a`), t1 = sum(Type1error), t2 = sum(Type2error))
+  return(df)
+}
+# PFDR_fun()
+reps = plyr::rdply(1000, PFDR_fun(), .id = NULL)
 
+# PFDR = rep(NA, length(Lfdr))
+# Q = rep(NA, length(Lfdr))
+# for(t in 1:length(Lfdr)) {
+#   Q[t] = (sum(sort(Lfdr)[1:t]/t))# %>% print
+#   PFDR[t] = ((sum(sort(Lfdr)[1:t]/t)) < alpha)# %>% print
+# }
 
+### Make plots! 
 ```
 
 
