@@ -170,7 +170,7 @@ PFDR_fun = function(p = 0.4, alpha = 0.05, num_samples = 1000, alt_hyp = 4) {
 # }
 ##### 
 
-pr = seq(0.1, 0.9, length.out = 10)
+pr = seq(0.01, 0.99, length.out = 10)
 alt = c(2, 5)
 samps = c(30, 100, 500)
 pr_alt_samps = expand.grid(pr, alt, samps)
@@ -194,7 +194,8 @@ ggplot(reps, mapping = aes(x = p, y = PFDR)) +
   stat_summary(fun = "mean", geom = "line", color = "red") + 
   facet_grid(alt_hyp ~ num_samples) +
   geom_abline(intercept = 0.05, slope = 0) + 
-  labs(x = "Proportion of false null hypotheses") +
+  labs(x = "Proportion of false null hypotheses",
+       title = "Lfdr control method simulation") +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", 
                                          breaks = NULL, labels = NULL), limits = c(0,0.8)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
