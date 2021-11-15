@@ -80,7 +80,11 @@ df = expand_grid(p = rep(seq(0.005, 0.9, length.out = 20), each = 200),
                  method = c("bonferroni", "BH"),
                  alt_hyp = c(2,5), 
                  m = c(30, 100, 500)) 
-many = t(mapply(func, p = df$p, method = df$method, alt_hyp = df$alt_hyp, m = df$m)) %>%
+many = t(mapply(func, 
+                p = df$p, 
+                method = df$method, 
+                alt_hyp = df$alt_hyp, 
+                m = df$m)) %>%
   as_tibble %>% 
   rename(FDR = V1, Power = V2) %>%
   mutate(df)
@@ -102,7 +106,8 @@ ggplot(data = many, aes(x = p, y = Power, color = method)) +
   geom_point(size = 0.3, alpha = 0.2) +
   stat_summary(fun = "mean", geom = "line") +
   facet_grid(alt_hyp ~ m) +
-  labs(x = "Proportion of false null hypotheses") + 
+  labs(x = "Proportion of false null hypotheses",
+       title = "Power of variations of parameters for FDR control methods") + 
   scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", 
                                          breaks = NULL, labels = NULL), limits = c(0,1)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
@@ -113,18 +118,17 @@ ggplot(data = many, aes(x = p, y = FDR, color = method)) +
   stat_summary(fun = "mean", geom = "line") + 
   facet_grid(alt_hyp ~ m) +
   geom_abline(intercept = 0.05, slope = 0) + 
-  labs(x = "Proportion of false null hypotheses") +
+  labs(x = "Proportion of false null hypotheses",
+       title = "FDR for variations of parameters for FDR control methods") +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", 
                                          breaks = NULL, labels = NULL), limits = c(0,0.2)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
                                          breaks = NULL, labels = NULL), limits = c(0,1))
-
-
 ```
 
 Using Lfdr and PFDR
 
-```{r}
+```{r, warning = F}
 # Basically re-using code from above
 # p known here!
 p = 0.4
@@ -138,6 +142,7 @@ num_samples = 1000
 # f = (1-p)*dnorm(X, 0, 1) + p*dnorm(X, 5, 1)
 
 # Lfdr = (1-pi)f0(X)/f(x)
+# Change bernoulli to binom
 PFDR_fun = function(p = 0.4, alpha = 0.05, num_samples = 1000, alt_hyp = 4) {
   df = tibble(theta = rbernoulli(num_samples, p),
               X = ifelse(theta, rnorm(num_samples, alt_hyp, 1), rnorm(num_samples, 0, 1)),
@@ -148,20 +153,52 @@ PFDR_fun = function(p = 0.4, alpha = 0.05, num_samples = 1000, alt_hyp = 4) {
            `q<a` = q < alpha, # Total discoveries
            Type1error = `q<a`&!theta, # Type 1 errors
            Type2error = theta&!`q<a`) %>% # Type 2 errors
-    summarise(theta = sum(theta), disc = sum(`q<a`), t1 = sum(Type1error), t2 = sum(Type2error))
+    summarise(theta = sum(theta), disc = sum(`q<a`), t1 = sum(Type1error), t2 = sum(Type2error), p, alt_hyp, num_samples)
   return(df)
 }
 # PFDR_fun()
-reps = plyr::rdply(1000, PFDR_fun(), .id = NULL)
+# reps = plyr::rdply(100, PFDR_fun(), .id = NULL) %>% summarise(PFDR = t1/disc)
+# 
+# mean(as.matrix(reps))
 
+#### Old code ####
 # PFDR = rep(NA, length(Lfdr))
 # Q = rep(NA, length(Lfdr))
 # for(t in 1:length(Lfdr)) {
 #   Q[t] = (sum(sort(Lfdr)[1:t]/t))# %>% print
 #   PFDR[t] = ((sum(sort(Lfdr)[1:t]/t)) < alpha)# %>% print
 # }
+##### 
 
-### Make plots! 
+pr = seq(0.1, 0.9, length.out = 10)
+alt = c(2, 5)
+samps = c(30, 100, 500)
+pr_alt_samps = expand.grid(pr, alt, samps)
+
+# If no discoveries, then no type 1 errors and fdr = 0
+reps = replicate(100, 
+                 mapply(PFDR_fun, 
+                        p = pr_alt_samps[,1], 
+                        alt_hyp = pr_alt_samps[,2], 
+                        num_samples = pr_alt_samps[,3]) %>% t(), 
+                 simplify = F) %>% 
+  do.call(rbind, .) %>% 
+  as_tibble() %>% 
+  mutate(across(.col = everything(), as.double),
+         PFDR = ifelse(is.na(t1/disc), 0, t1/disc))
+
+### Make plots! Change values of p, 10 are plenty
+ggplot(reps, mapping = aes(x = p, y = PFDR)) + 
+  geom_point(size = 0.3, alpha = 0.3) +
+  geom_hline(yintercept = alpha, color = "blue") + 
+  stat_summary(fun = "mean", geom = "line", color = "red") + 
+  facet_grid(alt_hyp ~ num_samples) +
+  geom_abline(intercept = 0.05, slope = 0) + 
+  labs(x = "Proportion of false null hypotheses") +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", 
+                                         breaks = NULL, labels = NULL), limits = c(0,0.8)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
+                                         breaks = NULL, labels = NULL), limits = c(0,1))
 ```
 
 
