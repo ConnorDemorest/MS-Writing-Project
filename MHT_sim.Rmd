@@ -9,28 +9,33 @@ output: pdf_document
 knitr::opts_chunk$set(echo = F, fig.width = 10, fig.height = 5, 
                       cache = TRUE)
 library(tidyverse)
+library(mvtnorm)
 ```
 
-Simulation study: 
+<!-- Simulation study:  -->
 
-  1) Take 100 samples from N(0,1) and N(5,1) mixed with proportion p in (0,1). Take $\alpha = 0.05$. $X_i = (1-p)*N(0,1) + p*N(3,1)$
-  
-  2) Find p values of X
-  
-  3) Use BH, etc 
-  
-  4) Get FDP and Power
-  
-  5) Repeat many times to find FDR and avg power across values of p
+<!--   1) Take 100 samples from N(0,1) and N(5,1) mixed with proportion p in (0,1). Take $\alpha = 0.05$. $X_i = (1-p)*N(0,1) + p*N(3,1)$ -->
+
+<!--   2) Find p values of X -->
+
+<!--   3) Use BH, etc  -->
+
+<!--   4) Get FDP and Power -->
+
+<!--   5) Repeat many times to find FDR and avg power across values of p -->
+
+To generate fake data that have a known $pi$, the proportion of true alternative hypotheses (or false null hypotheses), n random Bernoulli(p) variables are created with both n and p known. This gives the "truth" statement for each alternative hypothesis. The null hypotheses are distributed Normal(0, 1) and the alternative hypotheses have Normal(`alt_hyp`, 1) distribution, creating a bi-modal mixture distribution with the density in each mode depending on the value of $pi$, shown in Figure 1. 
 
 ```{r, eval = F}
 p = 0.4
 a = 0.05
 num_samples = 100
 # True if true mean =/= 0
-A = rbernoulli(num_samples, p)
+## A = c(rep(1, p*num_samples), rep(0, (1-p)*num_samples))
+set.seed(1234)
+A = rbernoulli(n = num_samples, p = p)
 t_nulls = rnorm(num_samples, 0, 1)
-f_nulls = rnorm(num_samples, 2, 1)
+f_nulls = rnorm(num_samples, 3, 1) 
 samples = ifelse(A, f_nulls, t_nulls)
 p_vals = pnorm(samples, lower.tail = F)
 
@@ -43,25 +48,56 @@ FDP = ifelse(is.na(sum(!A & B)/sum(B)), 0, sum(!A & B)/sum(B))
 
 # Power = P(reject Null | Null false) = P(reject & Null false)/P(Null false)
 Power = ifelse(is.na(sum(A & B)/sum(A)), 0, sum(A & B)/sum(A))
+
+ggplot() + 
+  geom_density(aes(x = samples, color = "Sim data density"),
+               lwd = 2) + 
+  stat_function(fun = function(x) (0.4*dnorm(x, mean = 3, sd = 1) + 0.6*dnorm(x, 0, 1)), 
+                aes(col = "Theoretical mixture"),
+                lwd = 2) +
+  xlim(-4, 7) +
+  theme_bw() + 
+  labs(x = "",
+       y = "Density",
+       title = "Figure 1: Empirical vs theoretical mixture of Normal distributions",
+       caption = "n=100 simulations, 60% from N(0,1) and 40% from N(3,1) distributions.",
+       color = "") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-As a function:
+After creating the mixture distribution, the *something* is calculated. Using the `p.adjust` function, the p-values are corrected for multiplicity errors using the Bonferroni method and the Benjamini-Hochberg (BH) method. The unadjusted (no correction) and the Bonferroni and BH corrected p-values are used to determine the proportion of correct rejections of the null hypothesis (power) and the proportion of incorrect rejections of the null hypothesis (the Type 1 error) divided by the the total proportion of rejections of the null hypothesis (called "discoveries" from now on). This proportion calculated by $FDP = \frac{\text{# incorrect rejections}}{\text{Total # rejections}}$ is the false discovery proportion (FPD). The expected value of the FDP in the long run is the false discovery rate (FDR). 
 
-```{r warning = F}
+To simulate the properties of the power and the FDR, a function that takes the proportion of false null hypotheses $pi$, the number of hypotheses $m$, and the alternative hypothesis `alt_hyp` as values was used to calculate the long run behavior under each combination for each method of controlling the FDR in a simulation study. 
+
+For each combination of $pi$, $m$, `alt_hyp`, and method, 50 simulations was used to calculate the power and the FDR. The results are plotted in Figures 2 and 3 below. The FDR when using the BH method is controlled at the 5% level no matter what the parameters of the simulation are, which allows the power to increase drastically over the Bonferroni method, and does not change with increases in the number of hypotheses. The Bonferroni method is much too conservative in that it doesn't allow enough rejections of the null hypothesis to occur, which limits the power and the ability to scale with larger $m$. On the other hand, not controlling for the multiplicity corrections allows for much higher power, but at the cost of rejecting the null hypothesis far too often and having a much too high FDR. 
+
+<!-- Talk about how the methods work? -->
+
+```{r warning = F, eval = F}
 # m === number of total hypotheses
-func = function(p = 0.4, a = 0.05, m = 1000, alt_hyp = 3, method = "none") {
-  # A === True discoveries
+func = function(p = 0.4, a = 0.05, m = 10, alt_hyp = 3, method = "BH") {
+  # # A === True discoveries
+  # p = 0.4
+  # a = 0.05
+  # m = 10
+  # alt_hyp = 3
+  # method = "BH"
   A = rbernoulli(m, p)
-  t_nulls = rnorm(m, 0, 1)
-  f_nulls = rnorm(m, alt_hyp, 1)
-  samples = ifelse(A, f_nulls, t_nulls)
-  p_vals = pnorm(samples, lower.tail = F)
+  # t_nulls = rnorm(m, 0, 1)
+  # f_nulls = rnorm(m, alt_hyp, 1)
+  # samples = ifelse(A, f_nulls, t_nulls)
+  matp = MASS::mvrnorm(n = 1, 
+                 mu = ifelse(A, alt_hyp, 0),
+                 Sigma = diag(length(A)))
+  
+  p_vals = pnorm(matp, lower.tail = F)
+  # p_vals = pnorm(samples, lower.tail = F)
   adj_p_vals = p.adjust(p = p_vals, method = method)
   
   # Test discoveries
   B = (adj_p_vals <= a)
   # FP = A' & B
-  False_positive = ifelse(!A & B, 1, 0)
+  False_positive = !A & B
   # FDP = P(A' & B)/P(B)
   FDP = ifelse(is.na(sum(!A & B)/sum(B)), 0, sum(!A & B)/sum(B))
   
@@ -74,10 +110,10 @@ func = function(p = 0.4, a = 0.05, m = 1000, alt_hyp = 3, method = "none") {
 
 # many = replicate(1000, func(method = "none")) %>% apply(., 1, FUN = mean) %>% print
 
-df = expand_grid(p = rep(seq(0.005, 0.9, length.out = 20), each = 200), 
-                 method = c("bonferroni", "BH"),
+df = expand_grid(p = rep(seq(0.005, 0.9, length.out = 10), each = 30), 
+                 method = c("BH", "none"),
                  alt_hyp = c(2,5), 
-                 m = c(30, 100, 500)) 
+                 m = c(30, 100)) 
 many = t(mapply(func, 
                 p = df$p, 
                 method = df$method, 
@@ -87,29 +123,17 @@ many = t(mapply(func,
   rename(FDR = V1, Power = V2) %>%
   mutate(df)
 
-# do_many = function(num_reps = 1000, p = 0.4, a = 0.05, num_samples = 1000, method = "none") {
-#   many = replicate(num_reps, func(p = p, a = a, num_samples = num_samples, method = method)) %>% 
-#     apply(., 1, FUN = mean)
-#   return(many)
-# }
-# 
-# df = expand_grid(p = seq(0.1, 0.9, by = 0.01), method = c("none", "BH")) 
-# df2 = t(mapply(do_many, p = df$p, method = df$method, num_reps = 100)) %>% 
-#   as_tibble %>% 
-#   rename(FDR = V1, Power = V2) %>%
-#   mutate(df)
-
-# Increased p gives more true discoveries
-ggplot(data = many, aes(x = p, y = Power, color = method)) + 
-  geom_point(size = 0.3, alpha = 0.2) +
-  stat_summary(fun = "mean", geom = "line") +
-  facet_grid(alt_hyp ~ m) +
-  labs(x = "Proportion of false null hypotheses",
-       title = "Power of variations of parameters for FDR control methods") + 
-  scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", 
-                                         breaks = NULL, labels = NULL), limits = c(0,1)) +
-  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
-                                         breaks = NULL, labels = NULL), limits = c(0,1))
+# # Increased p gives more true discoveries
+# ggplot(data = many, aes(x = p, y = Power, color = method)) + 
+#   geom_point(size = 0.3, alpha = 0.2) +
+#   stat_summary(fun = "mean", geom = "line") +
+#   facet_grid(alt_hyp ~ m) +
+#   labs(x = "Proportion of false null hypotheses",
+#        title = "Figure 2: Power of variations of parameters for FDR control methods") + 
+#   scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", 
+#                                          breaks = NULL, labels = NULL), limits = c(0,1)) +
+#   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
+#                                          breaks = NULL, labels = NULL), limits = c(0,1))
 
 ggplot(data = many, aes(x = p, y = FDR, color = method)) + 
   geom_point(size = 0.3, alpha = 0.3) +
@@ -117,16 +141,16 @@ ggplot(data = many, aes(x = p, y = FDR, color = method)) +
   facet_grid(alt_hyp ~ m) +
   geom_abline(intercept = 0.05, slope = 0) + 
   labs(x = "Proportion of false null hypotheses",
-       title = "FDR for variations of parameters for FDR control methods") +
+       title = "Figure 3: FDR for variations of parameters for FDR control methods") +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", 
-                                         breaks = NULL, labels = NULL), limits = c(0,0.2)) +
+                                         breaks = NULL, labels = NULL), limits = c(0,1)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
                                          breaks = NULL, labels = NULL), limits = c(0,1))
 ```
 
 Using Lfdr and PFDR
 
-```{r, warning = F}
+```{r, warning = F, eval = F}
 # Basically re-using code from above
 # p known here!
 p = 0.4
@@ -276,19 +300,14 @@ This would show the performance of the two procedures when the p-values are posi
 
 # Takes in rho, N, proportions, and the alternative hypothesis
 # Outputs the T1 and T2 error rates for BH and Lfdr
-BH_lfdr_fun = function(num_samples = 100, p = 0.4, rho = 0, alt_hyp = 3) {
+BH_lfdr_fun = function(num.samples = 100, p = 0.4, rho = 0, alt_hyp = 3) {
   # Sigma has correlation structure rho and 1 on diagonal
-  Sigma = matrix(nrow = num_samples, ncol = num_samples, data = rho)
+  Sigma = matrix(nrow = num.samples, ncol = num.samples, data = rho)
   diag(Sigma) = 1
   # For known p, simulate the true hypothesis state
-  theta = rbernoulli(num_samples, p)
-  # Maybe I don't need these next three lines?  
-  f0 = rnorm(num_samples, 0, 1)
-  f1 = rnorm(num_samples, alt_hyp, 1)
-  mu_vec = ifelse(theta, f1, f0)
+  theta = rbernoulli(num.samples, p)
   # Generate positively correlated data
-  MVN = MASS::mvrnorm(n = 1, mu = mu_vec, Sigma = Sigma)
-  # Before, I was using the wrong values for MVN below here! Eek!
+  MVN = MASS::mvrnorm(n = 1, mu = ifelse(theta, alt_hyp, 0), Sigma = Sigma)
   # Get p-values for BH and adjust them
   MVN_p = pnorm(MVN, mean = 0, sd = 1, lower.tail = F)
   BH_p = p.adjust(MVN_p, method = "BH")
@@ -300,59 +319,70 @@ BH_lfdr_fun = function(num_samples = 100, p = 0.4, rho = 0, alt_hyp = 3) {
     arrange(Lfdr) %>%
     mutate(q = cumsum(Lfdr)/(1:length(Lfdr)),
            `q<a` = q < 0.05,
+           `BH<a` = BH_p < 0.05,
            # Calculate errors for BH and Lfdr methods
            Lfdr_Type1error = `q<a`&!theta,
-           Lfdr_Type2error = theta&!`q<a`,
-           BH_Type1error = (BH_p < 0.05) & !theta,
-           BH_Type2error = theta & !(BH_p < 0.05))
-  # Return df of mean for Lfdr and BH error rates
-  # Fancy version of apply if you're not exposed to map before
-  return(map_df(df[, 7:10], mean))
+           Lfdr_Type2error = !`q<a`&theta,
+           BH_Type1error = `BH<a` & !theta,
+           BH_Type2error = theta & !`BH<a`) %>% 
+    summarise(theta = sum(theta),
+              Lfdr_disc = sum(`q<a`),
+              BH_disc = sum(`BH<a`),
+              Lfdr_T1 = sum(Lfdr_Type1error),
+              Lfdr_T2 = sum(Lfdr_Type2error),
+              BH_T1 = sum(BH_Type1error),
+              BH_T2 = sum(BH_Type2error),
+              p, rho, num.samples)
+  return(df)
 }
 
 df = expand.grid(p = rep(seq(0.01, 0.99, length.out = 10), times = 50),
-                 num_samples = rep(c(30, 100, 250), times = 1),
-                 rho = rep(c(0, 0.1, 0.5), times = 1)) 
+                 num.samples = rep(c(30, 100, 250), times = 1),
+                 rho = rep(c(0, 0.8), times = 1)) 
 
 # Slow as heck without running in parallel
 parallel::mcmapply(FUN = BH_lfdr_fun, 
                    mc.cores = parallel::detectCores(), 
                    p = df$p, 
-                   num_samples = df$num_samples, 
+                   num.samples = df$num.samples, 
                    rho = df$rho, 
-                   alt_hyp = 2) -> a
+                   alt_hyp = 3) -> a
 
 # Move data around into a nice way to plot using ggplot
 BH_Lfdr = t(a) %>% 
   as_tibble(column_name = rownames(a)) %>% 
-  cbind(df) %>%
   mutate_all(as.double) %>%
-  pivot_longer(cols = ends_with("error"), 
-               names_to = c("Method", "Error"), 
+  mutate(BH_FDR = BH_T1/pmax(BH_disc, 1),
+         Lfdr_FDR = Lfdr_T1/pmax(Lfdr_disc, 1),
+         BH_Power = ifelse(theta == 0, 0, 1-BH_T2/theta),
+         Lfdr_Power = ifelse(theta == 0, 0, 1-Lfdr_T2/theta), 
+         .keep = "unused") %>%
+  pivot_longer(cols = contains("_"),
+               names_to = c("Method", "Type"),
                names_sep = "_",
-               values_to = "Prob") %>% 
-  mutate(Error = str_sub(Error, 1, 5))
+               values_to = "Prob")
 
 # Plot things
-ggplot(BH_Lfdr %>% filter(Error == "Type1"), 
+ggplot(BH_Lfdr %>% filter(Type == "FDR"), 
        mapping = aes(x = p, y = Prob, color = Method)) + 
-  geom_point(size = 0.3, alpha = 0.3) +
   stat_summary(fun = "mean", geom = "line") +
+  geom_point(size = 0.3, alpha = 0.3) +
   geom_hline(yintercept = 0.05) + 
-  facet_grid(rho ~ num_samples) +
+  facet_grid(rho ~ num.samples) +
   labs(x = "Proportion of false null hypotheses",
        title = "FDR control methods in positive dependence",
-       y = "Prob T1 Error") +
+       y = "False discovery rate") +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = "Amount of correlation", 
-                                         breaks = NULL, labels = NULL), limits = c(0,0.3)) +
+                                         breaks = NULL, labels = NULL)) +
+  coord_cartesian(ylim = c(0, 0.2)) + 
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
                                          breaks = NULL, labels = NULL), limits = c(0,1))
 
-ggplot(BH_Lfdr %>% filter(Error == "Type2"), 
-       mapping = aes(x = p, y = 1-Prob, color = Method)) + 
+ggplot(BH_Lfdr %>% filter(Type == "Power"), 
+       mapping = aes(x = p, y = Prob, color = Method)) + 
   geom_point(size = 0.3, alpha = 0.3) +
   stat_summary(fun = "mean", geom = "line") +
-  facet_grid(rho ~ num_samples) +
+  facet_grid(rho ~ num.samples) +
   labs(x = "Proportion of false null hypotheses",
        title = "FDR control methods in positive dependence",
        y = "Power") +
@@ -360,6 +390,15 @@ ggplot(BH_Lfdr %>% filter(Error == "Type2"),
                                          breaks = NULL, labels = NULL), limits = c(0,1)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
                                          breaks = NULL, labels = NULL), limits = c(0,1))
+
+set.seed(12)
+df = data.frame(x = rep(seq(0,1, by = 0.1), times = 10)) %>% 
+  mutate(y = x + rnorm(110, 0, 0.1))
+ggplot(data=  df, mapping = aes(x = x, y = y)) + geom_point() + 
+  stat_summary(fun = "mean", geom = "line")
+ggplot() + 
+  stat_summary(data = df, mapping = aes(x = x, y = y), fun = "mean", geom = "line") + 
+  geom_point(data = df %>% filter(y >= 0 & y <= 1), mapping = aes(x = x, y = y))
 ```
 
 _Should I have been doing two-sided tests?_
