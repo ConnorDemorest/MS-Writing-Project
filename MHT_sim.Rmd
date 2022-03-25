@@ -178,7 +178,9 @@ PFDR_fun = function(p = 0.4, alpha = 0.05, num_samples = 1000, alt_hyp = 4) {
               f = (1-p)*dnorm(X, 0, 1) + p*dnorm(X, alt_hyp, 1),
               Lfdr = (1-p)*dnorm(X, 0, 1)/f) %>% 
     arrange(Lfdr) %>% 
-    mutate(q = cumsum(Lfdr)/(1:length(Lfdr)), 
+    mutate(q = cumsum(Lfdr),
+           h = (1:length(Lfdr)), 
+           Q = q/h,
            `q<a` = q < alpha, # Total discoveries
            Type1error = `q<a`&!theta, # Type 1 errors
            Type2error = theta&!`q<a`) %>% # Type 2 errors

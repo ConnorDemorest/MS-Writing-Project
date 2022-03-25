@@ -1,0 +1,325 @@
+---
+title: "Data Analysis"
+author: "Connor Demorest"
+output:
+    pdf_document:
+      extra_dependencies: ["bbm", "threeparttable"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, fig.width = 10, fig.height = 5, 
+                      cache = TRUE)
+library(tidyverse)
+library(dplyr)
+library(magrittr)
+library(mvtnorm)
+library(forcats)
+```
+
+Data adaptive BH
+```{r}
+bhadjust = function(p_values, lambda = 0.5) {
+  R = sum(p_values <= lambda)
+  p_adj = (length(p_values) - R + 1)/(length(p_values)*(1-lambda)) * p_values
+  return(p.adjust(p_adj, method = "BH"))
+}
+```
+
+
+<!-- Goal: Get test statistics and p-values for the horse data received from collaborators Dr. Ron June and Dr. Katie Steward. -->
+
+<!-- Assumptions for horse data that are not necessarily obvious from the data: -->
+
+<!-- 1) Horses were measured at time points P, 1, and 2. Time point P is at week 0, before any treatments were ever administered. Time point 1 is measured 10 or 11 weeks after time point P, but one week after being administered treatment. Time point 2 is at week 2, two weeks after the time point P and also two weeks after being given treatment.  -->
+<!-- 2) Horses were not randomly assigned to get a treatment in a certain knee first. All 4 horses in the study had pre-treatment measurements in both knees, then got treatment in the right knee and control in the left knee for time point 1 (Time point 1 is 1 week after treatment, but 10 or 11 weeks after the pre-treatment measurement), and then got treatment in the left knee for time point 2 and control in the right knee for time point 2.  -->
+<!-- 3) There were 4 horses total, with 3 female and 1 male. Since it's kind of difficult to do statistics on a sample size of 1, we just have to ignore this. Our collaborators were pretty confident that there is a difference in metabolites of male and female horses (and also colts vs stallions vs geldings and fillys vs mares) based on their experience with mouse and human studies. -->
+
+<!-- We are basically just hoping that the study isn't confounded by a "knee effect" or "sex effect" of the horses, and that the time difference between the time point P and time point 1 (10 or 11 weeks) is not important. There's no great way to control for these effects due to the study design and the lack of randomization between sex and which leg was given the treatment first. There is no data on the age of the horses, and if there was it would still be hard to justify making any conclusions about heterogeneous treatment effects based on the age of the horse with so little data. -->
+
+```{r}
+data_final = read_csv("Data/TidyData.csv")
+
+# Removes columns that have a specified proportion of incomplete rows in the column
+data_na = data_final %>%
+  select(-V1, -V2) %>%
+  mutate(across(where(is.numeric), ~na_if(., 0)),
+         across(where(is.numeric), ~log(.)),
+         Trt = factor(Trt, levels = c("Trt", "Control"))) %>% 
+  # Allows flexibility for how many "incomplete" columns we want
+  # When 0, no incompleteness allowed
+  select(where(~sum(is.na(.x)) / length(.x) <= 0))
+#   
+# # data_na[, 2925:2932]
+# 
+# # 
+# # t.test(m4722~Trt, data=  data_na %>% filter(Week != "2" & Leg == "R"))$statistic
+# # t.test(m4722~Trt, data = data_na %>% filter(Week == "1"))$statistic
+# 
+# # Comparing right leg in Time Point 0 to Right in Time Point 1 (1 week after injection)
+# horses_R01 = data_na %>% 
+#   filter(Week != "2" & Leg == "R") %>% 
+#   select(starts_with("m"), Trt) %$% 
+#   map_if(.x = ., 
+#          .p = is.numeric, 
+#          .f = ~(t.test(.~Trt)$statistic)) %>%
+#   keep(is.numeric) %>% 
+#   as_tibble %>%
+#   pivot_longer(data = ., 
+#                cols = everything(), 
+#                names_to = "Metabolite", 
+#                values_to = "T-statistic") #%>% arrange(., desc(`T-statistic`))
+# 
+# ggplot(data = horses_R01, mapping = aes(x = `T-statistic`)) + geom_density()
+# 
+# # Comparing right leg in Time Point 1 to Left in Time Point 1
+# # Comparing treated knee to untreated knee at the same time point, both one week after treatment
+# 
+# horses_LR1 = data_na %>% 
+#   filter(Week %in% c("0","1")) %>% 
+#   select(starts_with("m"), Trt) %$% 
+#   map_if(.x = ., 
+#          .p = is.numeric, 
+#          .f = ~(t.test(.~Trt)$statistic)) %>%
+#   keep(is.numeric) %>% 
+#   as_tibble %>%
+#   pivot_longer(data = ., 
+#                cols = everything(), 
+#                names_to = "Metabolite", 
+#                values_to = "T-statistic") %>% print #%>% arrange(., desc(`T-statistic`))
+
+# ggplot(data = horses_LR1, mapping = aes(x = `T-statistic`)) + geom_density()
+  
+horses = data_na %>%
+  filter(Week %in% c("1")) %>%
+  pivot_longer(cols = starts_with("m"),
+               names_to = "Metabolite",
+               values_to = "Relative Prevalence") %>%
+  mutate(Metabolite = forcats::fct_inorder(Metabolite)) %>%  
+  group_by(Metabolite, Trt) %>% 
+  summarise(.data = ., 
+            Mean = mean(`Relative Prevalence`),
+            Var = var(`Relative Prevalence`),
+            N = n()) %>% 
+  pivot_wider(., names_from = c(Trt), values_from = c(Mean, Var, N)) %>% 
+  mutate(Ov_mean_trt = mean(.$Mean_Trt),
+         Ov_mean_ctrl = mean(.$Mean_Control),
+         Ov_diff = Ov_mean_trt - Ov_mean_ctrl,
+         Z = ((Mean_Trt - Ov_mean_trt) - (Mean_Control - Ov_mean_ctrl))/sqrt((Var_Trt/N_Trt)+(Var_Control/N_Control))) %>%
+  print
+
+mean(horses$Z)
+sd(horses$Z)
+
+plot(density(horses$Z))
+```
+
+Under Ho: $\mu_{trt} = \mu_{ctrl}$ where trt is the treated knee (right) and ctrl is the control knee (left) at time point 1 (1 week after treatment). 
+
+`x` are the z-values for the ith metabolite calculated above by $Z_i = \frac{\bar{X}_{i, Trt}-\bar{X}_{i, Ctrl}-(\bar{X}_{\cdot, Trt}+\bar{X}_{\cdot, Ctrl})}{\sqrt{(S^2_{Trt}/n_{Trt}) + (S^2_{Ctrl}/n_{Ctrl})}}$.
+
+```{r, echo = F, eval = T}
+## Sum over only finite values because log yields infinite values sometimes
+sum.finite <- function(x) {
+  sum(x[is.finite(x)])
+}
+
+# Z values from data 
+#x = pt(horses$Z, df = 6) %>% qnorm(., mean = 0, sd = 1)
+x = horses$Z
+n = length(x)
+#-------Clustering and finding initial values--------#
+# Was getting the kmeans switching which group is which at random, so I set it for consistency
+# Can eventually write code to fix this if needed  
+set.seed(122)
+mem <- kmeans(x, 2)$cluster
+
+# Initialize so loop works
+mu1.new = sig1.new = pi1.new = pi0.new = 0
+# Initial values from clusters
+mu1.new[2] <- mean(x[mem==2])
+sig1.new[2] <- var(x[mem==2])
+#mu0.new[2] <- mean(x[mem==1])
+#sig0.new[2] <- var(x[mem==1])
+mu0.new = 0 # under null this is true
+sig0.new = 1
+pi1.new[2] <- sum(mem==2)/length(mem)
+pi0.new[2] <- sum(mem==1)/length(mem)
+k <- 2
+#----------------------------------------------------#
+
+while(abs(mu1.new[k] - mu1.new[k-1]) > 1e-9 & abs(sig1.new[k] - sig1.new[k-1]) > 1e-9 & abs(pi1.new[k] - pi1.new[k-1]) > 1e-9){ 
+# Lfdr = Pr(y = 0 | x, theta) = Pr(theta | y, x) * Pr(y = 0)/Pr(theta)
+Lfdr = pi0.new[k]*dnorm(x, 0, 1)/(pi0.new[k]*dnorm(x, 0, 1) + pi1.new[k]*dnorm(x, mu1.new[k], sqrt(sig1.new[k])))
+
+k = k + 1
+pi0.new[k] = sum.finite(Lfdr)/n
+pi1.new[k] = sum.finite((1-Lfdr))/n
+#mu0.new[k] = sum.finite(x*Lfdr)/(sum(Lfdr)) = 0 under null
+mu1.new[k] = sum.finite(x*(1-Lfdr))/(sum.finite((1-Lfdr)))
+#sig0.new[k] = sum.finite((x-mu0.new[k])^2*Lfdr)/sum.finite(Lfdr) = 1 under null
+sig1.new[k] = sum.finite((x-mu1.new[k])^2*(1-Lfdr))/sum.finite((1-Lfdr))
+}
+# Values after convergence
+p = pi1.new[k]
+#mu1 = mu1.new[k]
+mu1 = sign(mu1.new[k])*(abs(mu1.new[k]) + abs(horses$Ov_mean_trt[1] - horses$Ov_mean_ctrl[1]))
+sig1 = sig1.new[k]
+k
+p
+mu1
+sig1
+```
+
+```{r}
+ggplot(data = horses) + 
+  geom_density(aes(x = Mean_Trt, fill = "Mean Treatment"), alpha = 0.5) +
+  geom_density(aes(x = Mean_Control, fill = "Mean Control"), alpha = 0.5) +
+  geom_density(aes(x = Mean_Trt-Mean_Control, fill = "Trt-Ctrl"), alpha = 0.5) +
+  geom_density(aes(x = Z, fill = "Z"), alpha = 0.5) + 
+  #coord_cartesian(xlim = c(-2.5, 2.5)) +
+  labs(x = "Metabolite Intensity", 
+       fill = "",
+       caption = "Z scores have mean = 0.05, sd = 2.02?") +
+  theme_bw()
+
+ggplot(data = horses) +
+  geom_density(aes(x = Z))
+  
+data_na %>% 
+  filter(Week == "1") %>% 
+  select(Horse, Trt, starts_with("m")) %>% 
+  pivot_longer(cols = starts_with("m"),
+               names_to = "Metabolite",
+               values_to = "Intensity") %>%
+  ggplot(data = ., aes(x = Intensity, fill = Trt)) + 
+  geom_density(alpha = 0.5)
+
+alpha = 0.01
+#alpha = 0.05
+horses2 <- horses %>% 
+  mutate(p.val = dnorm(Z),
+         adaptbh_adj.p = bhadjust(p.val, lambda = 0.5)
+         #adj.p = bhadjust(p.val, lambda = (1-p)), # Can we use this p estimate since we already calculated it
+         ) %>%
+  ungroup %>% 
+  mutate(f = (1-p)*dnorm(Z) + p*dnorm(Z, mu1, sqrt(sig1)),
+         lfdr = (1-p)*dnorm(Z)/f,
+         bh_adj.p = p.adjust(p.val, method = "bonferroni"),
+         bh_disc = bh_adj.p < alpha,
+         adapt_bh_disc = adaptbh_adj.p < alpha) %>% 
+  arrange(lfdr) %>% 
+  mutate(q = cumsum(lfdr)/(1:n()),
+         lfdr_disc = q < alpha)
+mean(horses2$p.val < alpha); sum(horses2$p.val < alpha)
+mean(horses2$lfdr_disc); sum(horses2$lfdr_disc) 
+mean(horses2$bh_disc); sum(horses2$bh_disc)
+mean(horses2$adapt_bh_disc); sum(horses2$adapt_bh_disc)
+
+horses2 %>% filter(lfdr_disc == 1 & bh_disc == 0)
+horses2 %>% filter(lfdr_disc == 0 & bh_disc == 1)
+horses2 %>% filter(lfdr_disc == 1 | bh_disc == 1)
+
+data.frame(alpha = c("1%", "5%", "10%"), Lfdr = c(318, 577, 793), BH = c(203, 377, 515), AdaptBH = c(340, 582, 757), Unadjusted = c(429, 757, 981)) %>% 
+  #pivot_longer(., cols = c(Lfdr, AdaptBH, Unadjusted), values_to = "Metabolite Discoveries", names_to = "Method") %>%
+  knitr::kable(caption = "Number of discoveries made by the procedures")
+```
+
+<!-- lfdr = 793 rejections, adaptBH = 757, BH = 515, 981 no adjustment -->
+
+We use untargeted metabolomics case study of equine metabolomics from collaborators Dr. Ron June and Dr. Katie Steward in the Mechanical and Industrial Engineering department at Montana State University to demonstrate the use of the Lfdr method compared to the Adaptive BH method. Four horses were given a drug (flavopiridol) in their left knee and a saline control in the right knee. Synovial fluid from each knee was taken and data on the intensity of each metabolite, measuring the amount of each metabolite present, were gathered on a total of 4722 distinct metabolites. There were 2926 metabolites that had no missing values for any of the eight measurements that were used in this study. Information about the individual horses and knees of the horses are not considered, but could be future work. 
+
+The intensity values of each metabolite were log transformed. The Z-score of the difference in mean (log) intensity between the treatment and control knees was calculated by the following equation for each metabolite $i$: $$Z_i = \frac{\bar{X}_{i, Trt}-\bar{X}_{i, Ctrl}-(\bar{X}_{\cdot, Trt}+\bar{X}_{\cdot, Ctrl})}{\sqrt{(S^2_{Trt}/n_{Trt}) + (S^2_{Ctrl}/n_{Ctrl})}}$$. We apply the Adaptive Benjamini-Hochberg adjustment to the p-values and the data driven Lfdr method to each metabolite Z-score. 
+
+The Lfdr method returns a total of 793 discoveries (27% of metabolites), and the adaptive BH method gives a total of 757 discoveries (26%, with $\lambda$ parameter of 0.5) at an alpha level of 10%. There are 41 discoveries made by the Lfdr method but not with the Adaptive BH method, and 5 discoveries found with the Adaptive BH but not Lfdr. 
+
+Speak about clustering somewhere here. Future work could include: involving the horse-horse variability across treatment status, doing a multinomial-Dirichlet? or beta-binomial fully Bayesian treatment to estimate Lfdr,...
+
+Clustering? 
+```{r, eval = F}
+library(ggfortify)
+library(cluster)
+library(factoextra)
+library(NbClust)
+
+clusts = data_na %>% 
+  filter(Week == "1") %>% 
+  select(starts_with("m"))
+
+clusts2 = data_na %>% 
+  filter(Week == "1") %>% 
+  select(starts_with("m"), sample_id) %>% 
+  pivot_longer(cols=c(-sample_id),names_to="Original_Vars")%>%
+  pivot_wider(names_from=c(sample_id))
+
+dist = clusts %>% cor(method = "spearman") %>% apply(., 2, \(x) sqrt(2*(1-x)))
+#dist = clusts %>% cor(method = "spearman") %>% apply(., 2, \(x) sqrt(2*(1-abs(x))))
+dist2 = get_dist(clusts2 %>% select(where(is.numeric)), method = "spearman") # Not exactly sure what this is doing but it makes the pretty picture so I'll stick with it for now. 
+fviz_dist(dist.obj = dist2, show_labels = FALSE)
+NbClust(data = clusts2[,-1], diss = dist2, distance = NULL, method = "ward.D")
+## fviz_nbclust() ##
+
+
+agnes = agnes(dist, diss = T, method = "ward")
+agnes %>% as.dendrogram %>% plot(type = "tri")
+clusts2$clusters = agnes_complete %>% as.hclust %>% cutree(., k = 5) %>% as.factor()
+rownames(clusts2) = clusts2$Original_Vars
+xtabs(~clusts2$clusters)
+
+# dist[1:20, 1:20] %>% agnes(., diss = T, method = "com") %>% plot
+
+# diana = diana(x = dist, diss = T)
+# diana %>% plot
+
+fanny = fanny(dist, diss = T, k = 5)
+pam = pam(dist, diss = T)
+
+PCA = princomp(clusts2 %>% select(where(is.numeric)), cor = T)
+#cumsum(PCA$sdev^2)/ncol(clusts2 %>% select(where(is.numeric)))
+autoplot(object = PCA, 
+         data = clusts2, 
+         colour = "clusters", 
+         frame = T, 
+         frame.type = "norm", 
+         scale = 0) + 
+  theme_bw()
+
+#### 
+# Internet example
+autoplot(clara(iris[-5], 3), 
+         data = iris, 
+         colour = 'Species', 
+         shape = FALSE, 
+         label.size = 3, 
+         frame = T,
+         frame.type = "norm")
+```
+
+## Why are we interested in Lfdr?
+
+The local false discovery rate is a Bayesian version of a frequentist FDR measure, and it "allows interpretation for individual cases". (what does this mean? Efron 2004)
+
+Lfdr is the natural (and oracle) way to minimize the mFNR while controlling mFDR based on a weighted classification problem of false discoveries and false nondiscoveries. 
+
+Lfdr allows for "local" information to be included in the statistic by using a ratio of the null density at that value (Z) and the overall (mixture?) distribution at that value. This can lead to a non-symmetric rejection region which allows for more flexibility compared to p-value methods. The authors say it "is more adaptive than Adaptive BH" because it uses both the local information and the global p to make a decision.
+
+Lfdr is more powerful than the BH or Adaptive BH (for which measures? mFNR & mFDR?)
+
+Is mFNR, mFDR a "better" statistic for any reason, or just different? -> FDR <= mFDR maybe, and mFDR is easier to work with than FDR for minimization problems?
+
+## EM algorithm
+
+Let $\pi_0$ and $\pi_1 = 1 - \pi_0$ be the proportion of the $n\ H_0$ and $m\ H_1$ hypotheses in the data, where $H_0: \mu_0 = \mu_1$ and $H_1: \mu_0 \neq \mu_1$. The mean and variance of each group $\mu_{0, i}, \sigma^2_{0, i}$ and $\mu_{1, i}, \sigma^2_{1, i}$ are estimated for each observation $i$ in the data by $\bar X_{0, i}, S^2_{0, i}, \bar X_{1, i},\ and\ S^2_{1, i}$. The $Z_i$ scores are calculated by $Z_i = \frac{\bar X_{1, i} - \bar X_{0, i} - (\bar X_1 - \bar X_0)}{\sqrt{\frac{S^2_{0, i}}{n} + \frac{S^2_{1, i}}{m}}}$.
+
+## Adaptive BH method
+
+Let $p_i, i = 1, ..., n$ be the p-values of the hypotheses $H_i$. Let $R = \Sigma_{i = 1}^{n} \mathbbm{1}(p_i < \lambda)$ where $\lambda = 0.5$. 
+
+The estimated proportion of null hypotheses $\hat\pi_0 = \frac{n - R + 1}{n(1-\lambda)}$ is used to adjust the p-values by the proportion of null hypotheses, $p_i^w = \hat\pi_0 p_i$. 
+
+Order $p_{(i)}^w$ by $p_{(1)}^w < p_{(2)}^w < ... < p_{(n)}^w$ and compare each with $\frac{i\alpha}{n}, i = 1, 2, ..., n$
+
+Reject first $k$ hypotheses such that $p_{(1)}^w < ... < p_{(k)}^w < \frac{k\alpha}{n}$
+
+# Code:
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE, include = F}
+```

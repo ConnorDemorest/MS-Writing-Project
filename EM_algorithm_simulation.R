@@ -22,6 +22,8 @@ plot(density(x))
 Q <- 0
 #-------Clustering and finding initial values--------#
 mem <- kmeans(x,2)$cluster
+# Think these are backwards! How does this affect my data?
+# xtabs(~ x + mem)
 mu1.new <- mean(x[mem==1])
 mu0.new <- mean(x[mem==2])
 sig1.new <- var(x[mem==1])
@@ -67,7 +69,7 @@ while(abs(Q[k]-Q[k-1])> 1e-6){
   Q[k] <- sum.finite((p.new.x * log(dnorm(x, mu1.new, sqrt(sig1.new)) * p))) + 
                 sum.finite(p.inv.new.x * log(dnorm(x, mu0.new, sqrt(sig0.new)) * p.inv))
   
-  if(k%%100 ==0)
+  if(k%%100 ==0) 
     print(k)
   
 }
