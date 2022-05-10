@@ -1,17 +1,3 @@
-@article{romano2010,
-  title={Multiple testing},
-  author={Romano, Joseph P and Shaikh, Azeem M and Wolf, Michael and others},
-  journal={The New Palgrave Dictionary of Economics. Forthcoming},
-  year={2010}
-}
-@article{storey2011,
-  title={False Discovery Rate.},
-  author={Storey, John D},
-  journal={International encyclopedia of statistical science},
-  volume={1},
-  pages={504--508},
-  year={2011}
-}
 @article{sarkar2008,
   title={On methods controlling the false discovery rate},
   author={Sarkar, Sanat K},
@@ -19,36 +5,6 @@
   pages={135--168},
   year={2008},
   publisher={JSTOR}
-}
-@article{carlson2019,
-  title={Characterization of synovial fluid metabolomic phenotypes of cartilage morphological changes associated with osteoarthritis},
-  author={Carlson, Alyssa K and Rawle, Rachel A and Wallace, Cameron W and Brooks, Ellen G and Adams, Erik and Greenwood, Mark C and Olmer, Merissa and Lotz, Martin K and Bothner, Brian and June, Ronald K},
-  journal={Osteoarthritis and cartilage},
-  volume={27},
-  number={8},
-  pages={1174--1184},
-  year={2019},
-  publisher={Elsevier}
-}
-@article{sarkarnandi2021,
-  title={On the Development of a Local FDR-Based Approach to Testing Two-Way Classified Hypotheses},
-  author={Sarkar, Sanat K and Nandi, Shinjini},
-  journal={Sankhya B},
-  volume={83},
-  number={1},
-  pages={1--11},
-  year={2021},
-  publisher={Springer}
-}
-@article{sun2009,
-  title={Large-scale multiple testing under dependence},
-  author={Sun, Wenguang and Tony Cai, T},
-  journal={Journal of the Royal Statistical Society: Series B (Statistical Methodology)},
-  volume={71},
-  number={2},
-  pages={393--424},
-  year={2009},
-  publisher={Wiley Online Library}
 }
 @article{suncai2007,
   title={Oracle and adaptive compound decision rules for false discovery rate control},
@@ -60,24 +16,7 @@
   year={2007},
   publisher={Taylor \& Francis}
 }
-@article{liu2016,
-  title={A new approach to multiple testing of grouped hypotheses},
-  author={Liu, Yanping and Sarkar, Sanat K and Zhao, Zhigen},
-  journal={Journal of Statistical Planning and Inference},
-  volume={179},
-  pages={1--14},
-  year={2016},
-  publisher={Elsevier}
-}
-@inproceedings{lei2016power,
-  title={Power of ordered hypothesis testing},
-  author={Lei, Lihua and Fithian, William},
-  booktitle={International conference on machine learning},
-  pages={2924--2932},
-  year={2016},
-  organization={PMLR}
-}
-@article{benjamini1995,
+@article{bh1995,
   title={Controlling the false discovery rate: a practical and powerful approach to multiple testing},
   author={Benjamini, Yoav and Hochberg, Yosef},
   journal={Journal of the Royal statistical society: series B (Methodological)},
@@ -95,9 +34,6 @@ volume = {64},
 number = {3},
 pages = {479-498},
 keywords = {False discovery rate, Multiple comparisons, Positive false discovery rate, p-values, q-values, Sequential p-value methods, Simultaneous inference},
-doi = {https://doi.org/10.1111/1467-9868.00346},
-url = {https://rss.onlinelibrary.wiley.com/doi/abs/10.1111/1467-9868.00346},
-eprint = {https://rss.onlinelibrary.wiley.com/doi/pdf/10.1111/1467-9868.00346},
 year = {2002}
 }
 @article{efron2001,
@@ -108,9 +44,62 @@ volume = {96},
 number = {456},
 pages = {1151-1160},
 year  = {2001},
-publisher = {Taylor & Francis},
-doi = {10.1198/016214501753382129},
-URL = { 
-        https://doi.org/10.1198/016214501753382129},
-eprint = {https://doi.org/10.1198/016214501753382129}
+publisher = {Taylor & Francis}
+}
+
+@article{storey2003,
+author = {John D. Storey},
+title = {{The positive false discovery rate: a Bayesian interpretation and the q-value}},
+volume = {31},
+journal = {The Annals of Statistics},
+number = {6},
+publisher = {Institute of Mathematical Statistics},
+pages = {2013 -- 2035},
+keywords = {$P$-values, $q$-values, Multiple comparisons, pFDR, pFNR, simultaneous inference},
+year = {2003}
+}
+
+@article{storey2004,
+author = {Storey, John D. and Taylor, Jonathan E. and Siegmund, David},
+title = {Strong control, conservative point estimation and simultaneous conservative consistency of false discovery rates: a unified approach},
+journal = {Journal of the Royal Statistical Society: Series B (Statistical Methodology)},
+volume = {66},
+number = {1},
+pages = {187-205},
+keywords = {Multiple comparisons, Positive false discovery rate, P-values, Q-values, Simultaneous inference},
+abstract = {Summary. The false discovery rate (FDR) is a multiple hypothesis testing quantity that describes the expected proportion of false positive results among all rejected null hypotheses. Benjamini and Hochberg introduced this quantity and proved that a particular step-up p-value method controls the FDR. Storey introduced a point estimate of the FDR for fixed significance regions. The former approach conservatively controls the FDR at a fixed predetermined level, and the latter provides a conservatively biased estimate of the FDR for a fixed predetermined significance region. In this work, we show in both finite sample and asymptotic settings that the goals of the two approaches are essentially equivalent. In particular, the FDR point estimates can be used to define valid FDR controlling procedures. In the asymptotic setting, we also show that the point estimates can be used to estimate the FDR conservatively over all significance regions simultaneously, which is equivalent to controlling the FDR at all levels simultaneously. The main tool that we use is to translate existing FDR methods into procedures involving empirical processes. This simplifies finite sample proofs, provides a framework for asymptotic results and proves that these procedures are valid even under certain forms of dependence.},
+year = {2004}
+}
+@article{bh2001,
+ abstract = {Benjamini and Hochberg suggest that the false discovery rate may be the appropriate error rate to control in many applied multiple testing problems. A simple procedure was given there as an FDR controlling procedure for independent test statistics and was shown to be much more powerful than comparable procedures which control the traditional familywise error rate. We prove that this same procedure also controls the false discovery rate when the test statistics have positive regression dependency on each of the test statistics corresponding to the true null hypotheses. This condition for positive dependency is general enough to cover many problems of practical interest, including the comparisons of many treatments with a single control, multivariate normal test statistics with positive correlation matrix and multivariate t. Furthermore, the test statistics may be discrete, and the tested hypotheses composite without posing special difficulties. For all other forms of dependency, a simple conservative modification of the procedure controls the false discovery rate. Thus the range of problems for which a procedure with proven FDR control can be offered is greatly increased.},
+ author = {Yoav Benjamini and Daniel Yekutieli},
+ journal = {The Annals of Statistics},
+ number = {4},
+ pages = {1165--1188},
+ publisher = {Institute of Mathematical Statistics},
+ title = {The Control of the False Discovery Rate in Multiple Testing under Dependency},
+ volume = {29},
+ year = {2001}
+}
+@article{wasserman2002,
+author = {Genovese, Christopher and Wasserman, Larry},
+title = {Operating characteristics and extensions of the false discovery rate procedure},
+journal = {Journal of the Royal Statistical Society: Series B (Statistical Methodology)},
+volume = {64},
+number = {3},
+pages = {499-517},
+keywords = {False discovery rate, Multiple testing, p-values, Risk},
+abstract = {Summary. We investigate the operating characteristics of the Benjamini–Hochberg false discovery rate procedure for multiple testing. This is a distribution-free method that controls the expected fraction of falsely rejected null hypotheses among those rejected. The paper provides a framework for understanding more about this procedure. We first study the asymptotic properties of the `deciding point' D that determines the critical p-value. From this, we obtain explicit asymptotic expressions for a particular risk function. We introduce the dual notion of false non-rejections and we consider a risk function that combines the false discovery rate and false non-rejections. We also consider the optimal procedure with respect to a measure of conditional risk.},
+year = {2002}
+}
+@article{holm1979,
+ abstract = {This paper presents a simple and widely applicable multiple test procedure of the sequentially rejective type, i.e. hypotheses are rejected one at a time until no further rejections can be done. It is shown that the test has a prescribed level of significance protection against error of the first kind for any combination of true hypotheses. The power properties of the test and a number of possible applications are also discussed.},
+ author = {Sture Holm},
+ journal = {Scandinavian Journal of Statistics},
+ number = {2},
+ pages = {65--70},
+ publisher = {[Board of the Foundation of the Scandinavian Journal of Statistics, Wiley]},
+ title = {A Simple Sequentially Rejective Multiple Test Procedure},
+ volume = {6},
+ year = {1979}
 }

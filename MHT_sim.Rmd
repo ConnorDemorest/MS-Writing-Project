@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = F, fig.width = 10, fig.height = 5,
 library(tidyverse)
 library(magrittr)
 library(mvtnorm)
+theme_set(theme_bw())
 ```
 
 <!-- Simulation study:  -->
@@ -154,6 +155,185 @@ ggplot(data = many, aes(x = p, y = FDR, color = method, linetype = method)) +
                                          breaks = NULL, labels = NULL)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Number of Hypotheses", 
                                          breaks = NULL, labels = NULL))
+
+func2 = function(p = 0.4, a = 0.05, m = 10, alt_hyp = 3, method = "BH", ret = "FDR") {
+  # # A === True discoveries
+  # p = 0.4
+  # a = 0.05
+  # m = 10
+  # alt_hyp = 3
+  # method = "none"
+  dat = tibble(A = rbernoulli(m, p))
+  # t_nulls = rnorm(m, 0, 1)
+  # f_nulls = rnorm(m, alt_hyp, 1)
+  # samples = ifelse(A, f_nulls, t_nulls)
+  dat = dat %>% mutate(matp = rnorm(n = m, mean = ifelse(A, alt_hyp, 0), sd = 1), 
+         p_vals = pnorm(matp, lower.tail = F))
+  # p_vals = pnorm(samples, lower.tail = F)
+  if(method %in% c("none", "BH", "bonferroni")) {
+    dat = dat %>% 
+      mutate(adj_p_vals = p.adjust(p = p_vals, method = method))
+  }
+  if(method == "Lfdr") {
+    dat = dat %>% mutate(
+      f = (1-p)*dnorm(matp, 0, 1) + p*dnorm(matp, alt_hyp, 1),
+      Lfdr = (1-p)*dnorm(matp, 0, 1)/f) %>% 
+      arrange(Lfdr) %>% 
+      mutate(adj_p_vals = sort(Lfdr) %>% cumsum/1:n())
+  }
+  if(method == "AdaptBH"){
+    dat = dat %>%  mutate(R = sum(p_vals <= 0.5),
+                          p_adj = (length(p_vals) - R + 1)/(length(p_vals)*(1-0.5)) * p_vals,
+                          adj_p_vals = p.adjust(p_adj, method = "BH"))
+  }
+  # Test discoveries
+  dat = dat %>% 
+  mutate(B = (adj_p_vals <= a),
+  # FP = A' & B
+  False_positive = !A & B)
+  # FDP = P(A' & B)/P(B)
+  FDR = ifelse(is.na(sum(!dat$A & dat$B)/sum(dat$B)), 0, sum(!dat$A & dat$B)/sum(dat$B))
+  Power = ifelse(is.na(sum(dat$A & dat$B)/sum(dat$A)), 0, sum(dat$A & dat$B)/sum(dat$A))
+  return(ifelse(ret == "FDR", FDR, Power))
+}
+# df = expand_grid(p = rep(seq(0.01, 0.9, length.out = 10), each = 10), 
+#                  method = c("BH", "AdaptBH", "bonferroni", "Lfdr", "none"),
+#                  alt_hyp = 3, 
+#                  m = c(30, 100, 1000))
+# parallel::mcmapply(func2,
+#                    mc.cores = parallel::detectCores(),
+#                    p = df$p, 
+#                    method = df$method, 
+#                    alt_hyp = df$alt_hyp, 
+#                    m = df$m, 
+#                    ret = "FDR") %>% 
+#   as_tibble() %>% 
+#   rename("FDR" = "value") %>% 
+#   mutate(df) -> many2
+# 
+# ggplot(data = many2, 
+#        aes(x = p, y = FDR, color = method, linetype = method)) + 
+#   #geom_point(size = 0.3, alpha = 0.3) +
+#   stat_summary(fun = "mean", geom = "line") + 
+#   stat_summary(fun = "mean", geom = "point", aes(shape = method)) + 
+#   facet_wrap(~m, ncol = 1) +
+#   geom_abline(intercept = 0.05, slope = 0) + 
+#   labs(x =expression("Proportion of signal," ~ pi[1]),
+#        title = "Figure 3: FDR control methods comparison",
+#        linetype = "Method",
+#        color = "Method",
+#        shape = "Method",
+#        y = "FDR") +
+#   coord_cartesian(ylim =  c(0, 0.2),
+#                   xlim = c(0,1)) + 
+#   #scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", breaks = NULL, labels = NULL)) +
+#   scale_x_continuous(sec.axis = sec_axis(~ . , name =  "Number of Tests", 
+#                                          breaks = NULL, labels = NULL)) +
+#   scale_color_manual(values = c("#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E")) -> q 
+#   ggsave(plot = q, filename = "Plot.png", height = 7, width = 5)
+  
+  
+df3 = expand_grid(p = rep(seq(0.01, 0.9, length.out = 10), each = 200), 
+                 method = c("BH", "AdaptBH", "bonferroni", "Lfdr", "none"),
+                 alt_hyp = c(1, 4), 
+                 m = c(30, 100, 1000))
+parallel::mcmapply(func2,
+                   mc.cores = parallel::detectCores(),
+                   p = df3$p, 
+                   method = df3$method, 
+                   alt_hyp = df3$alt_hyp, 
+                   m = df3$m, 
+                   ret = "FDR") %>% 
+  as_tibble() %>% 
+  rename("FDR" = "value") %>% 
+  mutate(df3) -> many3
+
+ggplot(data = many3, 
+       aes(x = p, y = FDR, color = method, linetype = method)) + 
+  #geom_point(size = 0.3, alpha = 0.3) +
+  stat_summary(fun = "mean", geom = "line") + 
+  stat_summary(fun = "mean", geom = "point", aes(shape = method)) + 
+  facet_grid(alt_hyp~m) +
+  geom_abline(intercept = 0.05, slope = 0) + 
+  labs(x =expression("Proportion of signal," ~ pi[1]),
+       title = "Figure 1: FDR control methods comparison of FDR",
+       linetype = "Method",
+       color = "Method",
+       shape = "Method",
+       y = "FDR") +
+  coord_cartesian(ylim =  c(0, 0.2),
+                  xlim = c(0,1)) + 
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name =  "Number of Tests", 
+                                         breaks = NULL, labels = NULL)) +
+  scale_color_manual(values = c("#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E"))
+
+############################
+
+parallel::mcmapply(func2,
+                   mc.cores = parallel::detectCores(),
+                   p = df3$p, 
+                   method = df3$method, 
+                   alt_hyp = df3$alt_hyp, 
+                   m = df3$m, 
+                   ret = "Power") %>% 
+  as_tibble() %>% 
+  rename("Power" = "value") %>% 
+  mutate(df3) -> many4
+
+ggplot(data = many4, 
+       aes(x = p, y = Power, color = method, linetype = method)) + 
+  #geom_point(size = 0.3, alpha = 0.3) +
+  stat_summary(fun = "mean", geom = "line") + 
+  stat_summary(fun = "mean", geom = "point", aes(shape = method)) + 
+  facet_grid(alt_hyp~m) +
+  labs(x =expression("Proportion of signal," ~ pi[1]),
+       title = "Figure 2: FDR control methods comparison of Power",
+       linetype = "Method",
+       color = "Method",
+       shape = "Method",
+       y = "Power") +
+  coord_cartesian(ylim =  c(0, 1),
+                  xlim = c(0,1)) + 
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name =  "Number of Tests", 
+                                         breaks = NULL, labels = NULL)) +
+  scale_color_manual(values = c("#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E"))
+
+###############
+
+df4 = expand_grid(p = rep(c(0.1, 0.5, 0.8), each = 100), 
+                 method = c("BH", "AdaptBH", "bonferroni", "Lfdr", "none"),
+                 alt_hyp = c(1, 4), 
+                 m = c(10, 50, seq(100,1000, by = 100), 2000))
+parallel::mcmapply(func2,
+                   mc.cores = parallel::detectCores(),
+                   p = df4$p, 
+                   method = df4$method, 
+                   alt_hyp = df4$alt_hyp, 
+                   m = df4$m, 
+                   ret = "Power") %>% 
+  as_tibble() %>% 
+  rename("Power" = "value") %>% 
+  mutate(df4) -> many5
+
+ggplot(data = many5, 
+       aes(x = m, y = Power, color = method, linetype = method)) + 
+  #geom_point(size = 0.3, alpha = 0.3) +
+  stat_summary(fun = "mean", geom = "line") + 
+  stat_summary(fun = "mean", geom = "point", aes(shape = method)) + 
+  facet_grid(alt_hyp~p) +
+  labs(x = "Number of tests",
+       title = "Figure 3: FDR control methods comparison of Power and number of tests",
+       linetype = "Method",
+       color = "Method",
+       shape = "Method",
+       y = "Power") +
+  coord_cartesian(ylim = c(0, 1)) + 
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "True Difference in Means", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name =  expression("Proportion of signal," ~ pi[1]), 
+                                         breaks = NULL, labels = NULL)) +
+  scale_color_manual(values = c("#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E"))
 ```
 
 
